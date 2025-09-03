@@ -1,4 +1,4 @@
-# Documentation Solana en Français 🇫🇷
+# AfricaWeb3Hub Documentation Solana en Français 🇫🇷
 
 Bienvenue dans le dépôt officiel de documentation **Solana traduite en français**, maintenu par la communauté **Africaweb3hub**. 
 **Solana vous aidera à découvrir ce que vous n'auriez jamais pensé possible et abordable.**
