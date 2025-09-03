@@ -251,3 +251,235 @@ Ce processus est souvent simplifié, mais il est utile de comprendre comment ça
 - Le **Programme Système** est crucial pour la création et la gestion des comptes.  
 - Les programmes utilisent des **comptes de données** pour stocker leur état.  
 - Comprendre ce modèle est essentiel pour développer sur Solana !
+
+---
+
+## Transactions et Instructions  
+
+Sur Solana, les utilisateurs envoient des **transactions** pour interagir avec le réseau. Une transaction contient une ou plusieurs **instructions** qui spécifient les opérations à exécuter. La logique d'exécution de ces instructions est stockée dans des **programmes** déployés sur le réseau Solana, chaque programme définissant son propre ensemble d'instructions.  
+
+**Points clés à retenir :**  
+- Si une transaction contient plusieurs instructions, elles sont exécutées **dans l'ordre** où elles sont ajoutées.  
+- Les transactions sont **atomiques** : soit **toutes** les instructions réussissent, soit **aucun** changement n'est appliqué.  
+- Une transaction est essentiellement une **demande de traitement** d'une ou plusieurs instructions. Imagine une transaction comme une **enveloppe** contenant des formulaires (les instructions). Envoyer la transaction, c'est comme poster l'enveloppe pour faire traiter les formulaires.  
+
+![Transaction Simplifiée](lien-image-transaction-simplifiee.png)  
+
+---
+
+### **Exemple : Transfert de SOL**  
+Le schéma ci-dessous représente une transaction avec une **seule instruction** pour transférer des SOL d'un expéditeur à un destinataire.  
+
+Sur Solana, les « portefeuilles » (wallets) sont des comptes appartenant au **Programme Système**. Seul le programme propriétaire peut modifier les données d'un compte. Donc, pour transférer des SOL, il faut envoyer une transaction qui appelle le Programme Système.  
+
+![Transfert SOL](lien-image-transfert-sol.png)  
+
+Le compte expéditeur doit **signer** la transaction (`is_signer`) pour autoriser le Programme Système à retirer des lamports de son solde. Les comptes expéditeur et destinataire doivent être **modifiables** (`is_writable`) car leurs soldes vont changer.  
+
+Après l'envoi, le Programme Système traite l'instruction de transfert et met à jour les soldes des deux comptes.  
+
+![Processus de Transfert SOL](lien-image-processus-transfert.png)  
+
+**Exemple de code (Kit) :**  
+```typescript
+import {
+  airdropFactory,
+  appendTransactionMessageInstructions,
+  createSolanaRpc,
+  createSolanaRpcSubscriptions,
+  createTransactionMessage,
+  generateKeyPairSigner,
+  getSignatureFromTransaction,
+  lamports,
+  pipe,
+  sendAndConfirmTransactionFactory,
+  setTransactionMessageFeePayerSigner,
+  setTransactionMessageLifetimeUsingBlockhash,
+  signTransactionMessageWithSigners
+} from "@solana/kit";
+import { getTransferSolInstruction } from "@solana-program/system";
+
+// Connexion à un cluster Solana (local ici)
+const rpc = createSolanaRpc("http://localhost:8899");
+const rpcSubscriptions = createSolanaRpcSubscriptions("ws://localhost:8900");
+
+// Génération des clés pour l'expéditeur et le destinataire
+const sender = await generateKeyPairSigner();
+const recipient = await generateKeyPairSigner();
+
+const LAMPORTS_PER_SOL = 1_000_000_000n;
+const transferAmount = lamports(LAMPORTS_PER_SOL / 100n); // 0.01 SOL
+
+// On crédite l'expéditeur via un airdrop
+await airdropFactory({ rpc, rpcSubscriptions })({
+  recipientAddress: sender.address,
+  lamports: lamports(LAMPORTS_PER_SOL), // 1 SOL
+  commitment: "confirmed"
+});
+
+// Soldes avant le transfert
+const { value: preBalance1 } = await rpc.getBalance(sender.address).send();
+const { value: preBalance2 } = await rpc.getBalance(recipient.address).send();
+
+// Création de l'instruction de transfert
+const transferInstruction = getTransferSolInstruction({
+  source: sender,
+  destination: recipient.address,
+  amount: transferAmount
+});
+
+// Construction du message de transaction
+const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+const transactionMessage = pipe(
+  createTransactionMessage({ version: 0 }),
+  (tx) => setTransactionMessageFeePayerSigner(sender, tx), // Payeur des frais
+  (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx), // Bloc de référence
+  (tx) => appendTransactionMessageInstructions([transferInstruction], tx) // Ajout de l'instruction
+);
+
+// Signature et envoi de la transaction
+const signedTransaction =
+  await signTransactionMessageWithSigners(transactionMessage);
+await sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions })(
+  signedTransaction,
+  { commitment: "confirmed" }
+);
+const transactionSignature = getSignatureFromTransaction(signedTransaction);
+
+// Soldes après le transfert
+const { value: postBalance1 } = await rpc.getBalance(sender.address).send();
+const { value: postBalance2 } = await rpc.getBalance(recipient.address).send();
+
+// Affichage des résultats
+console.log("Solde expéditeur avant :", Number(preBalance1) / Number(LAMPORTS_PER_SOL));
+console.log("Solde destinataire avant :", Number(preBalance2) / Number(LAMPORTS_PER_SOL));
+console.log("Solde expéditeur après :", Number(postBalance1) / Number(LAMPORTS_PER_SOL));
+console.log("Solde destinataire après :", Number(postBalance2) / Number(LAMPORTS_PER_SOL));
+console.log("Signature de la transaction :", transactionSignature);
+```
+
+---
+
+### **Instructions**  
+Une instruction sur Solana peut être vue comme une **fonction publique** que n'importe qui peut appeler sur le réseau.  
+
+Imagine un programme Solana comme un **serveur web** hébergé sur le réseau, où chaque instruction est comme un **point d'API public** que les utilisateurs peuvent appeler pour effectuer des actions spécifiques. Appeler une instruction, c'est comme envoyer une **requête POST** à une API.  
+
+Pour appeler l'instruction d'un programme, tu dois construire une structure `Instruction` avec trois informations :  
+
+1.  **Program ID** : L'adresse du programme qui contient la logique de l'instruction.
+2.  **Comptes** : La liste de **tous les comptes** que l'instruction lit ou modifie.
+3.  **Données de l'instruction** : Un tableau d'octets qui spécifie *quelle* instruction appeler sur le programme et contient les arguments nécessaires.
+
+**Structure d'une Instruction :**
+```rust
+pub struct Instruction {
+    pub program_id: Pubkey,       // Adresse du programme
+    pub accounts: Vec<AccountMeta>, // Liste des comptes
+    pub data: Vec<u8>,            // Données (instruction + arguments)
+}
+```
+
+![Instruction de Transaction](lien-image-instruction-transaction.png)  
+
+#### **AccountMeta**  
+Pour chaque compte requis par une instruction, tu dois fournir une structure `AccountMeta` qui spécifie :  
+
+- `pubkey` : L'adresse du compte.
+- `is_signer` : Si le compte doit **signer** la transaction.
+- `is_writable` : Si l'instruction **modifie** les données ou le solde du compte.
+
+**Structure AccountMeta :**
+```rust
+pub struct AccountMeta {
+    pub pubkey: Pubkey,
+    pub is_signer: bool,
+    pub is_writable: bool,
+}
+```
+En spécifiant à l'avance quels comptes une instruction lit ou écrit, le runtime Solana peut exécuter **en parallèle** les transactions qui ne modifient pas les mêmes comptes.  
+
+En pratique, tu n'as généralement pas à construire une Instruction manuellement. La plupart des programmes fournissent des **bibliothèques clientes** avec des fonctions d'aide qui créent les instructions pour toi.  
+
+![AccountMeta](lien-image-accountmeta.png)  
+
+**Exemple de Structure d'Instruction :**  
+*(Voir le code dans l'onglet console de l'exemple précédent pour voir la sortie JSON d'une instruction de transfert SOL)*
+
+---
+
+### **Transactions**  
+Une fois que tu as créé les instructions à invoquer, l'étape suivante est de créer une **Transaction** et d'y ajouter les instructions.  
+
+Une transaction Solana est composée de :  
+- **Signatures** : Un tableau de signatures de tous les comptes requis comme signataires pour les instructions de la transaction.
+- **Message** : Le message de transaction, qui inclut la liste des instructions à traiter de manière atomique.
+
+**Structure d'une Transaction :**
+```rust
+pub struct Transaction {
+    pub signatures: Vec<Signature>, // Les signatures
+    pub message: Message,           // Le message
+}
+```
+
+![Format de Transaction](lien-image-format-transaction.png)  
+
+#### **Structure du Message**  
+Le message a une structure bien définie :  
+- **En-tête du message (Message Header)** : Spécifie le nombre de comptes signataires et en lecture seule.
+- **Adresses des comptes** : Un tableau de toutes les adresses de comptes requis par les instructions.
+- **Bloc de référence (Recent Blockhash)** : Agit comme un horodatage pour la transaction.
+- **Instructions** : Un tableau des instructions à exécuter.
+
+**Structure du Message :**
+```rust
+pub struct Message {
+    pub header: MessageHeader,        // En-tête
+    pub account_keys: Vec<Pubkey>,    // Adresses des comptes
+    pub recent_blockhash: Hash,       // Bloc de référence
+    pub instructions: Vec<CompiledInstruction>, // Instructions compilées
+}
+```
+
+#### **Taille des Transactions**  
+Les transactions Solana ont une **limite de taille de 1232 octets**. Cette limite vient de la taille MTU d'IPv6 (1280 octets), moins 48 octets pour les en-têtes réseau. La taille totale (signatures + message) doit respecter cette limite.  
+
+#### **Bloc de Référence (Recent Blockhash)**  
+Chaque transaction a besoin d'un **bloc de référence récent**. Il a deux utilités :  
+1.  Il agit comme un **horodatage** pour la création de la transaction.
+2.  Il **empêche** les transactions d'être rejouées (dupliquées).
+
+Un bloc de référence **expire après 150 blocs** (environ 1 minute). Après cela, la transaction est considérée comme expirée et ne peut plus être traitée. Tu peux utiliser la méthode RPC `getLatestBlockhash` pour obtenir le bloc de référence actuel.  
+
+#### **Tableau des Instructions**  
+Les instructions dans le message sont dans un format compilé (`CompiledInstruction`). Chaque instruction compilée contient :  
+- **Program ID Index** : Un index qui pointe vers l'adresse du programme dans le tableau des adresses de comptes.
+- **Account Indexes** : Un tableau d'index qui pointent vers les comptes requis pour cette instruction.
+- **Instruction Data** : Un tableau d'octets qui spécifie l'instruction à appeler et ses arguments.
+
+**Structure CompiledInstruction :**
+```rust
+pub struct CompiledInstruction {
+    pub program_id_index: u8,   // Index du programme
+    pub accounts: Vec<u8>,      // Index des comptes
+    pub data: Vec<u8>,          // Données de l'instruction
+}
+```
+
+![Tableau Compact d'Instructions](lien-image-tableau-instructions.png)  
+
+**Exemple de Structure de Transaction :**  
+*(Voir le code dans l'onglet console pour voir la sortie JSON d'un message de transaction)*
+
+---
+
+### **Après l'Envoi**  
+Après avoir soumis une transaction, tu peux récupérer ses détails en utilisant la méthode RPC `getTransaction` avec sa **signature** (qui est simplement la première signature de la transaction, celle du payeur des frais). Tu peux aussi inspecter la transaction sur **Solana Explorer**.  
+
+La réponse contiendra des informations comme :  
+- `blockTime` : Quand la transaction a été traitée.
+- `meta.fee` : Les frais de transaction payés.
+- `meta.err` : Une erreur éventuelle.
+- `meta.logMessages` : Les logs du programme.
+- `preBalances` / `postBalances` : Les soldes des comptes avant et après.
