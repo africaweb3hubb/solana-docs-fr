@@ -614,3 +614,162 @@ console.log("Signature de la transaction :", signature);
 4.  On envoie et confirme la transaction comme d'habitude.  
 
 C'est ainsi que tu optimises tes transactions pour qu'elles soient traitées rapidement !
+
+## Programmes  
+
+Sur Solana, les « smart contracts » s'appellent des **programmes**. Les programmes sont déployés sur la blockchain dans des **comptes** qui contiennent le code exécutable compilé du programme. Les utilisateurs interagissent avec les programmes en envoyant des **transactions** qui contiennent des **instructions** indiquant au programme quoi faire.  
+
+**Points Clés à Retenir :**  
+- Les programmes sont des comptes contenant du **code exécutable**, organisé en fonctions appelées **instructions**.  
+- Bien que les programmes eux-mêmes soient **sans état** (« stateless »), ils peuvent inclure des instructions qui **créent et mettent à jour** d'autres comptes pour stocker des données.  
+- Une **autorité de mise à jour** (« upgrade authority ») peut modifier les programmes. Si cette autorité est révoquée, le programme devient **immutable** (impossible à modifier).  
+- Les utilisateurs peuvent **vérifier** que le code d'un programme sur la blockchain correspond à son code source public grâce aux **compilations vérifiables** (« verifiable builds »).  
+
+---
+
+### **Écrire des Programmes Solana**  
+Les programmes Solana sont principalement écrits en **Rust**, avec deux approches de développement courantes :  
+
+1.  **Anchor** : Un **framework** conçu pour le développement de programmes Solana. Il permet d'écrire des programmes plus rapidement et plus simplement en utilisant des macros Rust pour réduire le code répétitif. Pour les débutants, il est recommandé de commencer avec Anchor.  
+2.  **Rust Natif** : Cette approche consiste à écrire des programmes Solana en Rust sans utiliser de framework. Elle offre plus de flexibilité mais est aussi plus complexe.  
+
+---
+
+### **Mettre à Jour les Programmes Solana**  
+Pour en savoir plus sur le déploiement et la mise à jour des programmes, consulte la page [deploying programs](lien-vers-la-page).  
+
+Les programmes peuvent être modifiés directement par un compte désigné comme **« autorité de mise à jour »**, qui est généralement le compte ayant initialement déployé le programme. Si cette autorité est révoquée et définie sur `None`, le programme devient **immutable** et ne peut plus être mis à jour.  
+
+---
+
+### **Programmes Vérifiables**  
+Les **compilations vérifiables** permettent à n'importe qui de vérifier que le code d'un programme sur la blockchain correspond à son code source public. Cela permet de détecter les différences entre les versions source et déployées.  
+
+La communauté de développeurs Solana a créé des outils pour supporter les compilations vérifiables, permettant aux développeurs et aux utilisateurs de vérifier que les programmes sur la blockchain reflètent fidèlement leur code source public.  
+
+- **Recherche de Programmes Vérifiés :** Pour vérifier rapidement, les utilisateurs peuvent rechercher une adresse de programme sur [Solana Explorer](https://explorer.solana.com/). Voir un exemple de programme vérifié [ici](lien-exemple).  
+- **Outils de Vérification :** Le [Solana Verifiable Build CLI](lien-vers-l-outil) par Ellipsis Labs permet de vérifier indépendamment les programmes sur la blockchain par rapport au code source publié.  
+- **Support dans Anchor :** Anchor fournit un support intégré pour les compilations vérifiables. Les détails se trouvent dans la [documentation Anchor](lien-doc-Anchor).  
+
+---
+
+### **Berkeley Packet Filter (BPF)**  
+Solana utilise **LLVM** (Low Level Virtual Machine) pour compiler les programmes en fichiers **ELF** (Executable and Linkable Format). Ces fichiers contiennent une version personnalisée du bytecode eBPF, appelée **« Solana Bytecode Format » (sBPF)**. Le fichier ELF contient le binaire du programme et est stocké sur la blockchain dans un **compte exécutable** lorsque le programme est déployé.  
+
+---
+
+### **Programmes Intégrés (« Built-in Programs »)**  
+
+#### **Programmes de Chargement (« Loader Programs »)**  
+Chaque programme est lui-même la propriété d'un autre programme, son **chargeur** (« loader »). Il existe actuellement cinq programmes de chargement :  
+
+| Chargeur | Program ID | Notes | Instructions |  
+|----------|------------|-------|--------------|  
+| **native** | `NativeLoader1111111111111111111111111111111` | Possède les quatre autres chargeurs. | — |  
+| **v1** | `BPFLoader1111111111111111111111111111111111` | Instructions de gestion désactivées, mais les programmes s'exécutent. | — |  
+| **v2** | `BPFLoader2111111111111111111111111111111111` | Instructions de gestion désactivées, mais les programmes s'exécutent. | [Instructions](lien) |  
+| **v3** | `BPFLoaderUpgradeab1e11111111111111111111111` | En cours d'abandon. | [Instructions](lien) |  
+| **v4** | `LoaderV411111111111111111111111111111111111` | **v4 devrait devenir le chargeur standard.** | [Instructions](lien) |  
+
+Ces chargeurs sont nécessaires pour créer et gérer des programmes personnalisés :  
+- Déployer un nouveau programme ou « buffer ».  
+- Fermer un programme ou un buffer.  
+- Redéployer / mettre à jour un programme existant.  
+- Transférer l'autorité sur un programme.  
+- Finaliser un programme.  
+
+Les chargeurs **v3** et **v4** prennent en charge les modifications des programmes après leur déploiement initial. La permission de le faire est régulée par l'**autorité** d'un programme, car la propriété de chaque compte programme appartient au chargeur.  
+
+---
+
+#### **Programmes Précompilés**  
+
+##### **1. Programme Ed25519**  
+| Programme | Program ID | Description | Instructions |  
+|-----------|------------|-------------|--------------|  
+| **Ed25519** | `Ed25519SigVerify111111111111111111111111111` | Vérifie les signatures ed25519. Si une signature échoue, une erreur est retournée. | [Instructions](lien) |  
+
+Ce programme traite une instruction. Le premier `u8` est le nombre de signatures à vérifier, suivi d'un octet de remplissage. Ensuite, la structure suivante est sérialisée, une pour chaque signature à vérifier.  
+
+**Structure Ed25519SignatureOffsets :**  
+```rust
+struct Ed25519SignatureOffsets {
+    signature_offset: u16,             // offset de la signature ed25519 (64 octets)
+    signature_instruction_index: u16,  // index de l'instruction pour trouver la signature
+    public_key_offset: u16,            // offset de la clé publique (32 octets)
+    public_key_instruction_index: u16, // index de l'instruction pour trouver la clé publique
+    message_data_offset: u16,          // offset du début des données du message
+    message_data_size: u16,            // taille des données du message
+    message_instruction_index: u16,    // index de l'instruction pour trouver les données du message
+}
+```
+**Logique de Vérification (Pseudo-code) :**  
+Le programme vérifie chaque signature en récupérant la signature, la clé publique et le message à partir des offsets spécifiés dans les données d'instruction de la transaction. Si une vérification échoue, toute la transaction échoue.
+
+##### **2. Programme Secp256k1**  
+| Programme | Program ID | Description | Instructions |  
+|-----------|------------|-------------|--------------|  
+| **Secp256k1** | `KeccakSecp256k11111111111111111111111111111` | Vérifie les opérations de récupération de clé publique secp256k1 (`ecrecover`). | [Instructions](lien) |  
+
+Ce programme traite une instruction dont le premier octet est le nombre de structures suivantes sérialisées dans les données d'instruction :  
+
+**Structure Secp256k1SignatureOffsets :**  
+```rust
+struct Secp256k1SignatureOffsets {
+    secp_signature_offset: u16,            // offset de [signature, recovery_id] (64+1 octets)
+    secp_signature_instruction_index: u8,  // index de l'instruction pour trouver la signature
+    secp_pubkey_offset: u16,               // offset de la pubkey ethereum_address (20 octets)
+    secp_pubkey_instruction_index: u8,     // index de l'instruction pour trouver la pubkey
+    secp_message_data_offset: u16,         // offset du début des données du message
+    secp_message_data_size: u16,           // taille des données du message
+    secp_message_instruction_index: u8,    // index de l'instruction pour trouver les données du message
+}
+```
+**Logique de Vérification (Pseudo-code) :**  
+Le programme récupère la signature, l'ID de récupération, la clé publique de référence et le hachage du message (Keccak256) depuis les données d'instruction. Il utilise `ecrecover` pour obtenir la clé publique à partir de la signature et du hachage du message, puis compare le résultat avec la clé publique de référence.
+
+##### **3. Programme Secp256r1**  
+| Programme | Program ID | Description | Instructions |  
+|-----------|------------|-------------|--------------|  
+| **Secp256r1** | `Secp256r1SigVerify1111111111111111111111111` | Vérifie jusqu'à 8 signatures secp256r1. Prend une signature, une clé publique et un message. Retourne une erreur si une échoue. | [Instructions](lien) |  
+
+Ce programme traite une instruction. Le premier `u8` est le nombre de signatures à vérifier, suivi d'un octet de remplissage. Ensuite, la structure suivante est sérialisée, une pour chaque signature à vérifier :  
+
+**Structure Secp256r1SignatureOffsets :**  
+```rust
+struct Secp256r1SignatureOffsets {
+    signature_offset: u16,             // offset de la signature compacte secp256r1 (64 octets)
+    signature_instruction_index: u16,  // index de l'instruction pour trouver la signature
+    public_key_offset: u16,            // offset de la clé publique compressée (33 octets)
+    public_key_instruction_index: u16, // index de l'instruction pour trouver la clé publique
+    message_data_offset: u16,          // offset du début des données du message
+    message_data_size: u16,            // taille des données du message
+    message_instruction_index: u16,    // index de l'instruction pour trouver les données du message
+}
+```
+**Logique de Vérification (Pseudo-code) :**  
+Similaire aux autres, il vérifie chaque signature une par une. **Note :** Les valeurs 'S' basses sont imposées pour toutes les signatures pour éviter toute malléabilité accidentelle des signatures.
+
+---
+
+### **Programmes de Base (« Core Programs »)**  
+Le démarrage (« genesis ») d'un cluster Solana inclut une liste de **programmes spéciaux** qui fournissent les fonctionnalités de base du réseau. Historiquement, ils étaient appelés programmes « natifs » et étaient distribués avec le code du validateur.  
+
+| Programme | Program ID | Description | Instructions |  
+|-----------|------------|-------------|--------------|  
+| **System Program** | `11111111111111111111111111111111` | Crée de nouveaux comptes, alloue l'espace des comptes, attribue la propriété des comptes, transfert des lamports et paye les frais de transaction. | [SystemInstruction](lien) |  
+| **Vote Program** | `Vote111111111111111111111111111111111111111` | Crée et gère les comptes qui suivent l'état des votes des validateurs et les récompenses. | [VoteInstruction](lien) |  
+| **Stake Program** | `Stake11111111111111111111111111111111111111` | Crée et gère les comptes représentant les enjeux (« stake ») et les récompenses pour les délégations aux validateurs. | [StakeInstruction](lien) |  
+| **Config Program** | `Config1111111111111111111111111111111111111` | Ajoute des données de configuration à la blockchain, suivies par la liste des clés publiques autorisées à les modifier. A une instruction implicite : "store". | [ConfigInstruction](lien) |  
+| **Compute Budget Program** | `ComputeBudget111111111111111111111111111111` | Définit les limites et prix des unités de calcul pour les transactions, permettant aux utilisateurs de contrôler les ressources et les frais de priorisation. | [ComputeBudgetInstruction](lien) |  
+| **Address Lookup Table Program** | `AddressLookupTab1e1111111111111111111111111` | Gère les tables de recherche d'adresses, qui permettent aux transactions de référencer plus de comptes que ne le permet normalement la liste de comptes d'une transaction. | [ProgramInstruction](lien) |  
+| **ZK ElGamal Proof Program** | `ZkE1Gama1Proof11111111111111111111111111111` | Fournit la vérification de preuves zero-knowledge pour les données chiffrées ElGamal. | — |  
+
+---
+
+**Résumé :**  
+- Les **programmes** sont le cœur des applications décentralisées sur Solana.  
+- Ils peuvent être écrits en **Rust** natif ou avec le framework **Anchor**.  
+- Les **programmes intégrés** fournissent les fonctionnalités essentielles du réseau (système, votes, enjeux, etc.).  
+- Les **programmes précompilés** (Ed25519, Secp256k1, Secp256r1) offrent une vérification cryptographique efficace et sécurisée directement sur la blockchain.  
+- La **vérifiabilité** assure la confiance dans le code déployé.
