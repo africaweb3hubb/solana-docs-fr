@@ -483,3 +483,134 @@ La réponse contiendra des informations comme :
 - `meta.err` : Une erreur éventuelle.
 - `meta.logMessages` : Les logs du programme.
 - `preBalances` / `postBalances` : Les soldes des comptes avant et après.
+---
+
+ 
+## Frais de Transaction  
+
+Chaque transaction sur Solana nécessite le paiement de **frais de base** (en SOL) pour rémunérer les validateurs qui traitent la transaction. Tu peux aussi payer des **frais de priorisation** (optionnels) pour augmenter les chances que le leader (validateur) actuel traite ta transaction en priorité.  
+
+**Points Clés à Retenir :**  
+- Les **frais de base** sont de **5000 lamports par signature** sur la transaction.  
+- Les **frais de priorisation** (optionnels) sont un supplément que tu payes au validateur pour être prioritaire.  
+- Les frais de priorisation se calculent ainsi : **(Limite d'unités de calcul × Prix par unité de calcul)**.  
+- La **limite d'unités de calcul** est le nombre maximum d'unités que ta transaction peut utiliser.  
+- Le **prix par unité de calcul** est le prix par unité, en **micro-lamports**.  
+  - *1 000 000 micro-lamports = 1 lamport*  
+- Le **payeur des frais** doit être un compte appartenant au **Programme Système**.  
+
+---
+
+### **Frais de Base**  
+Les frais de base représentent le coût pour envoyer une transaction. Ce coût est de **5000 lamports par signature** incluse dans la transaction.  
+
+Les frais de base sont prélevés sur le compte du **payeur des frais**, qui est le **premier signataire** de la transaction. Ce payeur doit être un compte appartenant au Programme Système.  
+
+- **50% sont brûlés** : La moitié des frais de base est détruite.  
+- **50% sont distribués** : L'autre moitié est versée au validateur qui a traité la transaction.  
+
+---
+
+### **Frais de Priorisation**  
+Les frais de priorisation sont **optionnels**. Ils permettent d'augmenter les chances que le leader actuel traite ta transaction en priorité.  
+
+**SIMD-0096 :** Le validateur qui traite la transaction reçoit **100%** des frais de priorité.  
+
+---
+
+### **Unités de Calcul et Limites**  
+Quand une transaction est traitée, elle utilise des ressources de calcul mesurées en **unités de calcul** (Compute Units - CU). Chaque instruction consomme une partie du « budget » d'unités de calcul de la transaction.  
+
+- **Limite Maximale :** Une transaction peut utiliser jusqu'à **1,4 million** d'unités de calcul.  
+- **Limite par Défaut :** Par défaut, chaque instruction peut utiliser jusqu'à **200 000** unités de calcul.  
+- **Limite Personnalisée :** Tu peux demander une limite spécifique en ajoutant une instruction `SetComputeUnitLimit` à ta transaction.  
+
+Pour plus de détails sur l'utilisation des unités de calcul, consulte le guide [How to Request Optimal Compute](lien-vers-le-guide).  
+
+---
+
+### **Prix par Unité de Calcul**  
+Le prix par unité de calcul est un montant optionnel, spécifié en **micro-lamports**, que tu acceptes de payer pour chaque unité de calcul demandée. Ce prix est utilisé pour calculer les frais de priorisation de ta transaction.  
+
+*1 000 000 micro-lamports = 1 lamport*  
+
+Tu peux utiliser ces services pour obtenir des recommandations en temps réel sur le prix actuel :  
+
+| Fournisseur | API des Frais de Priorité |  
+|-------------|----------------------------|  
+| **Helius** | [Documentation](lien-doc-helius) |  
+| **QuickNode** | [Documentation](lien-doc-quicknode) |  
+| **Triton** | [Documentation](lien-doc-triton) |  
+
+Voir le guide [How to Use Priority Fees](lien-vers-le-guide) pour plus de détails.  
+
+---
+
+### **Calcul des Frais de Priorisation**  
+Les frais de priorisation se calculent ainsi :  
+
+**Frais de Priorisation = Limite d'Unités de Calcul × Prix par Unité de Calcul**  
+
+La méthode recommandée pour définir les frais de priorité est la suivante :  
+1.  **Simule** d'abord la transaction pour estimer les unités de calcul nécessaires.  
+2.  Ajoute une **marge de sécurité de 10%** à cette estimation.  
+3.  Utilise la valeur obtenue comme **Limite d'Unités de Calcul**.  
+
+La **priorité** de la transaction, qui détermine son ordre de traitement par rapport aux autres, est calculée avec cette formule :  
+
+**Priorité = ((Limite d'UC × Prix par UC) + Frais de Base) / (1 + Limite d'UC + UC des Signatures + UC des Verrous en Écriture)**  
+
+Utilise ces instructions dans ta transaction pour définir la limite et le prix :  
+- `SetComputeUnitLimit` : Pour définir une limite d'unités de calcul spécifique.  
+- `SetComputeUnitPrice` : Pour définir le prix par unité de calcul.  
+
+Si tu ne fournis pas ces instructions, la transaction utilisera la **limite par défaut** avec un **prix de 0** (aucun frais de priorisation).  
+
+**Attention :** Les frais de priorité dépendent de la **limite** que tu demandes, et non des unités **réellement utilisées**. Si tu définis une limite trop élevée ou utilise la valeur par défaut, tu risques de payer pour des unités de calcul que tu n'utilises pas !  
+
+---
+
+### **Exemples**  
+Les exemples ci-dessous montrent comment définir la limite et le prix des unités de calcul pour une transaction.  
+
+**SDK** | **Référence du Code Source**  
+---|---  
+`solana-sdk` (Rust) | [ComputeBudgetInstruction](lien-doc-rust)  
+`@solana/web3.js` (TypeScript) | [ComputeBudgetProgram](lien-doc-ts)  
+
+**Exemple de Code (TypeScript) :**  
+```typescript
+// Instructions pour le budget de calcul
+const limitInstruction = ComputeBudgetProgram.setComputeUnitLimit({
+  units: 300_000 // Limite personnalisée à 300 000 unités
+});
+
+const priceInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+  microLamports: 1 // Prix de 1 micro-lamport par unité
+});
+
+// Instruction de transfert SOL classique
+const transferInstruction = SystemProgram.transfer({
+  fromPubkey: sender.publicKey,
+  toPubkey: recipient.publicKey,
+  lamports: 0.01 * LAMPORTS_PER_SOL
+});
+
+// On ajoute TOUTES les instructions à la transaction
+const transaction = new Transaction()
+  .add(limitInstruction)   // Doit être ajoutée en premier
+  .add(priceInstruction)   // En second
+  .add(transferInstruction); // Puis l'instruction métier
+
+// Envoi et confirmation de la transaction
+const signature = await sendAndConfirmTransaction(connection, transaction, [sender]);
+console.log("Signature de la transaction :", signature);
+```
+
+**Déroulement :**  
+1.  On crée les instructions pour définir la `limite` et le `prix`.  
+2.  On crée l'instruction de transfert (ou toute autre instruction métier).  
+3.  On ajoute **d'abord** les instructions de budget de calcul à la transaction, **puis** l'instruction métier.  
+4.  On envoie et confirme la transaction comme d'habitude.  
+
+C'est ainsi que tu optimises tes transactions pour qu'elles soient traitées rapidement !
