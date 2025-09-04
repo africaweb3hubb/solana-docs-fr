@@ -9,9 +9,9 @@ Bienvenue dans le dépôt officiel de documentation **Solana traduite en frança
 
 | Document | Description | Statut |
 | :--- | :--- | :--- |
-| **[Premier Concepts de base de Solana](./#1concepts-de-base.md)**  | Recommender par Solana | **✅ Complet**|
-| **[Deuxième Concepts de base de Solana](.#2concepts-de-base.md)**  | Les base de Solana en Profondeur. Prenez votre temps ici car ce seront vos armes pour comprendre ce que vous pourrez construire avec Solana. | **✅ Complet** |
-| **[Framework Anchor](.framework-anchor.md)** | Apprends à utiliser le framework Anchor pour construire des programmes Solana sécurisés. Il est recommandé d'avoir une compréhension de base des concepts fondamentaux de Solana (comptes, transactions, programmes, PDA) avant de plonger dans Anchor. | **✅ Complet**|
+| **[Premier Concepts de base de Solana](./#1concepts-de-base.md)**  | Recommender par Solana   | **✅ Complet**|
+| **[Deuxième Concepts de base de Solana](./#2concepts-de-base.md)**  | Les base de Solana en Profondeur. Prenez votre temps ici car ce seront vos armes pour comprendre ce que vous pourrez construire avec Solana.  | **✅ Complet** |
+| **[Framework Anchor](./framework-anchor.md)** | Apprends à utiliser le framework Anchor pour construire des programmes Solana sécurisés. Il est recommandé d'avoir une compréhension de base des concepts fondamentaux de Solana (comptes, transactions, programmes, PDA) avant de plonger dans Anchor.  | **✅ Complet**|
 | **[Développement de Programmes en Rust](./developper-en-rust.md)** | Guide pour créer, construire et déployer un programme Solana en Rust natif. | **✅ Complet** |
 | *Plus de contenu à venir...* | | |
 
