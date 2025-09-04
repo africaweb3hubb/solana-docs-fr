@@ -2,7 +2,7 @@
 
 ### Commencez à apprendre à partir d'ici avec **Africaweb3hub*
 
-## `Il est recommandé d'avoir une compréhension de base des concepts fondamentaux de Solana.`
+## `Avant tout, Il est recommandé d'avoir une compréhension de base des concepts fondamentaux de Solana.`
 
 Pour construire sur Solana, il est essentiel de comprendre plusieurs concepts clés uniques à son développement. Cette section couvre les concepts fondamentaux que tu dois connaître pour commencer à bâtir sur Solana, y compris les comptes, les transactions, les programmes, et plus encore.  
 
